@@ -3,9 +3,16 @@ defineProps<{
   msg: string
 }>()
 
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
-const products = ref([
+interface Product {
+  id: number
+  name: string
+  amount: number
+  price: number
+}
+
+const products = ref<Product[]>([
   {
     id: 1,
     name: 'Base lanfy',
@@ -26,10 +33,19 @@ const newProduct = ref({
   price: 0
 })
 
+const searchQuery = ref('')
+const editingProduct = ref<Product | null>(null)
+
 const errors = ref({
   name: '',
   price: '',
   amount: ''
+})
+
+const filteredProducts = computed(() => {
+  return products.value.filter(product => 
+    product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+  )
 })
 
 const validateName = () => {
@@ -62,7 +78,11 @@ const validateAndSubmit = () => {
   validateAmount()
 
   if (!errors.value.name && !errors.value.price && !errors.value.amount) {
-    addProduct()
+    if (editingProduct.value) {
+      updateProduct()
+    } else {
+      addProduct()
+    }
   }
 }
 
@@ -71,63 +91,136 @@ const showForm = ref(false)
 function addProduct() {
   const productToAdd = { ...newProduct.value, id: Date.now() }
   products.value.push(productToAdd)
-  newProduct.value.name = ''
-  newProduct.value.amount = 0
-  newProduct.value.price = 0
+  resetForm()
+}
+
+function updateProduct() {
+  if (editingProduct.value) {
+    const index = products.value.findIndex(p => p.id === editingProduct.value!.id)
+    if (index !== -1) {
+      products.value[index] = { ...newProduct.value, id: editingProduct.value!.id }
+    }
+    resetForm()
+    editingProduct.value = null
+  }
+}
+
+function deleteProduct(id: number) {
+  products.value = products.value.filter(product => product.id !== id)
+}
+
+function editProduct(product: Product) {
+  editingProduct.value = product
+  newProduct.value = { ...product }
+  showForm.value = true
+}
+
+function resetForm() {
+  newProduct.value = {
+    name: '',
+    amount: 0,
+    price: 0
+  }
   showForm.value = false
+  errors.value = {
+    name: '',
+    price: '',
+    amount: ''
+  }
+}
+
+function cancelEdit() {
+  resetForm()
+  editingProduct.value = null
 }
 </script>
 
 <template>
   <div class="greetings">
     <h1 class="green">{{ msg }}</h1>
-    <div>
-      <button @click="showForm = !showForm">
+    
+    <div class="search-container">
+      <input 
+        v-model="searchQuery" 
+        type="text" 
+        placeholder="Buscar produtos..."
+        class="search-input"
+      />
+    </div>
+
+    <div class="button-container">
+      <button @click="showForm = !showForm; if(showForm) editingProduct = null">
         {{ showForm ? 'Cancelar' : 'Adicionar Produto' }}
       </button>
-      <div v-if="showForm">
-        <form @submit.prevent="validateAndSubmit">
-          <label for="name">Nome:</label><br />
+    </div>
+
+    <div v-if="showForm" class="form-container">
+      <form @submit.prevent="validateAndSubmit">
+        <div class="form-group">
+          <label for="name">Nome:</label>
           <input
             v-model="newProduct.name"
             type="text"
             id="name"
             name="name"
-            value="gloss bocão"
             required
-          /><br />
+          />
           <span v-if="errors.name" class="error">{{ errors.name }}</span>
-          <br />
-          <label for="amount">Quantidade:</label><br />
+        </div>
+
+        <div class="form-group">
+          <label for="amount">Quantidade:</label>
           <input
             v-model.number="newProduct.amount"
-            type="text"
+            type="number"
             id="amount"
             name="amount"
-            value="maior que zero"
             required
-          /><br />
+          />
           <span v-if="errors.amount" class="error">{{ errors.amount }}</span>
-          <br />
-          <label for="amount">Preço:</label><br />
+        </div>
+
+        <div class="form-group">
+          <label for="price">Preço:</label>
           <input
             v-model.number="newProduct.price"
-            type="text"
-            id="amount"
-            name="amount"
-            value="maior que zero"
+            type="number"
+            id="price"
+            name="price"
             required
-          /><br />
+          />
           <span v-if="errors.price" class="error">{{ errors.price }}</span>
-          <br />
-          <input type="submit" value="Salvar" />
-        </form>
-      </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit">{{ editingProduct ? 'Atualizar' : 'Salvar' }}</button>
+          <button type="button" @click="cancelEdit" v-if="editingProduct">Cancelar</button>
+        </div>
+      </form>
     </div>
-    <div>
-      <ul>
-        <li v-for="product of products" :key="product.id">{{ product.name }}</li>
-      </ul>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Quantidade</th>
+            <th>Preço</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="product in filteredProducts" :key="product.id">
+            <td>{{ product.name }}</td>
+            <td>{{ product.amount }}</td>
+            <td>R$ {{ product.price.toFixed(2) }}</td>
+            <td>
+              <button @click="editProduct(product)" class="action-button edit">Editar</button>
+              <button @click="deleteProduct(product.id)" class="action-button delete">Remover</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
@@ -145,18 +238,110 @@ h1 {
   top: -10px;
 }
 
-h3 {
-  font-size: 1.2rem;
+.greetings {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
-.greetings h1,
-.greetings h3 {
-  text-align: center;
+.search-container {
+  margin: 20px 0;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.button-container {
+  margin: 20px 0;
+}
+
+.form-container {
+  background: #f5f5f5;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.table-container {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+th {
+  background-color: #f5f5f5;
+}
+
+.action-button {
+  padding: 6px 12px;
+  margin: 0 5px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.edit {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.delete {
+  background-color: #f44336;
+  color: white;
+}
+
+button {
+  padding: 8px 16px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.9;
 }
 
 @media (min-width: 1024px) {
-  .greetings h1,
-  .greetings h3 {
+  .greetings h1 {
     text-align: left;
   }
 }
