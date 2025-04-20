@@ -129,7 +129,10 @@ function updateProduct() {
 }
 
 function deleteProduct(id: number) {
-  products.value = products.value.filter(product => product.id !== id)
+  const product = products.value.find(p => p.id === id)
+  if (product && confirm(`Tem certeza que deseja remover o produto "${product.name}"?`)) {
+    products.value = products.value.filter(product => product.id !== id)
+  }
 }
 
 function editProduct(product: Product) {
