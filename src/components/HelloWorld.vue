@@ -30,7 +30,7 @@ const products = ref<Product[]>([
 const newProduct = ref({
   name: '',
   amount: 0,
-  price: 0
+  price: 0.00
 })
 
 const searchQuery = ref('')
@@ -42,10 +42,32 @@ const errors = ref({
   amount: ''
 })
 
+type SortKey = 'name' | 'amount' | 'price'
+
+const sortConfig = ref({
+  key: 'name' as SortKey,
+  direction: 'asc' as 'asc' | 'desc'
+})
+
 const filteredProducts = computed(() => {
   return products.value.filter(product => 
     product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
   )
+})
+
+const sortedProducts = computed(() => {
+  const sorted = [...filteredProducts.value]
+  sorted.sort((a, b) => {
+    const aValue = a[sortConfig.value.key]
+    const bValue = b[sortConfig.value.key]
+    
+    if (sortConfig.value.direction === 'asc') {
+      return aValue > bValue ? 1 : -1
+    } else {
+      return aValue < bValue ? 1 : -1
+    }
+  })
+  return sorted
 })
 
 const validateName = () => {
@@ -57,7 +79,8 @@ const validateName = () => {
 }
 
 const validatePrice = () => {
-  if (newProduct.value.price <= 0 || isNaN(newProduct.value.price)) {
+  const price = parseFloat(newProduct.value.price.toString())
+  if (isNaN(price) || price <= 0) {
     errors.value.price = 'O preço deve ser maior que 0'
   } else {
     errors.value.price = ''
@@ -119,7 +142,7 @@ function resetForm() {
   newProduct.value = {
     name: '',
     amount: 0,
-    price: 0
+    price: 0.00
   }
   showForm.value = false
   errors.value = {
@@ -132,6 +155,15 @@ function resetForm() {
 function cancelEdit() {
   resetForm()
   editingProduct.value = null
+}
+
+function sortTable(key: SortKey) {
+  if (sortConfig.value.key === key) {
+    sortConfig.value.direction = sortConfig.value.direction === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortConfig.value.key = key
+    sortConfig.value.direction = 'asc'
+  }
 }
 </script>
 
@@ -187,6 +219,8 @@ function cancelEdit() {
             type="number"
             id="price"
             name="price"
+            step="0.01"
+            min="0"
             required
           />
           <span v-if="errors.price" class="error">{{ errors.price }}</span>
@@ -203,14 +237,29 @@ function cancelEdit() {
       <table>
         <thead>
           <tr>
-            <th>Nome</th>
-            <th>Quantidade</th>
-            <th>Preço</th>
+            <th @click="sortTable('name')" class="sortable">
+              Nome
+              <span v-if="sortConfig.key === 'name'" class="sort-indicator">
+                {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
+            <th @click="sortTable('amount')" class="sortable">
+              Quantidade
+              <span v-if="sortConfig.key === 'amount'" class="sort-indicator">
+                {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
+            <th @click="sortTable('price')" class="sortable">
+              Preço
+              <span v-if="sortConfig.key === 'price'" class="sort-indicator">
+                {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="product in filteredProducts" :key="product.id">
+          <tr v-for="product in sortedProducts" :key="product.id">
             <td>{{ product.name }}</td>
             <td>{{ product.amount }}</td>
             <td>R$ {{ product.price.toFixed(2) }}</td>
@@ -344,5 +393,19 @@ button:hover {
   .greetings h1 {
     text-align: left;
   }
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  background-color: #e0e0e0;
+}
+
+.sort-indicator {
+  margin-left: 5px;
+  font-size: 0.8em;
 }
 </style>
