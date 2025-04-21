@@ -1,9 +1,6 @@
 <script setup lang="ts">
-defineProps<{
-  msg: string
-}>()
-
 import { ref, computed } from 'vue'
+import Sidebar from './Sidebar.vue'
 
 interface Product {
   id: number
@@ -12,6 +9,23 @@ interface Product {
   price: number
 }
 
+type SortKey = 'name' | 'amount' | 'price'
+
+defineProps<{
+  msg: string
+}>()
+
+// Navigation
+const currentRoute = ref('products')
+
+// Search and filters
+const searchQuery = ref('')
+const minAmount = ref('')
+const maxAmount = ref('')
+const minPrice = ref('')
+const maxPrice = ref('')
+
+// Products data
 const products = ref<Product[]>([
   {
     id: 1,
@@ -33,8 +47,8 @@ const newProduct = ref({
   price: 0.00
 })
 
-const searchQuery = ref('')
 const editingProduct = ref<Product | null>(null)
+const showForm = ref(false)
 
 const errors = ref({
   name: '',
@@ -42,17 +56,23 @@ const errors = ref({
   amount: ''
 })
 
-type SortKey = 'name' | 'amount' | 'price'
-
+// Sorting
 const sortConfig = ref({
   key: 'name' as SortKey,
   direction: 'asc' as 'asc' | 'desc'
 })
 
+// Computed properties
 const filteredProducts = computed(() => {
-  return products.value.filter(product => 
-    product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-  )
+  return products.value.filter(product => {
+    const nameMatch = product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+    const amountMatch = (!minAmount.value || product.amount >= Number(minAmount.value)) &&
+                       (!maxAmount.value || product.amount <= Number(maxAmount.value))
+    const priceMatch = (!minPrice.value || product.price >= Number(minPrice.value)) &&
+                      (!maxPrice.value || product.price <= Number(maxPrice.value))
+    
+    return nameMatch && amountMatch && priceMatch
+  })
 })
 
 const sortedProducts = computed(() => {
@@ -70,7 +90,12 @@ const sortedProducts = computed(() => {
   return sorted
 })
 
-const validateName = () => {
+// Functions
+function handleNavigation(route: string) {
+  currentRoute.value = route
+}
+
+function validateName() {
   if (!newProduct.value.name.trim()) {
     errors.value.name = 'O nome do produto é obrigatório'
   } else {
@@ -78,7 +103,7 @@ const validateName = () => {
   }
 }
 
-const validatePrice = () => {
+function validatePrice() {
   const price = parseFloat(newProduct.value.price.toString())
   if (isNaN(price) || price <= 0) {
     errors.value.price = 'O preço deve ser maior que 0'
@@ -87,7 +112,7 @@ const validatePrice = () => {
   }
 }
 
-const validateAmount = () => {
+function validateAmount() {
   if (newProduct.value.amount <= 0 || isNaN(newProduct.value.amount)) {
     errors.value.amount = 'A quantidade deve ser maior que 0'
   } else {
@@ -95,7 +120,7 @@ const validateAmount = () => {
   }
 }
 
-const validateAndSubmit = () => {
+function validateAndSubmit() {
   validateName()
   validatePrice()
   validateAmount()
@@ -108,8 +133,6 @@ const validateAndSubmit = () => {
     }
   }
 }
-
-const showForm = ref(false)
 
 function addProduct() {
   const productToAdd = { ...newProduct.value, id: Date.now() }
@@ -171,113 +194,131 @@ function sortTable(key: SortKey) {
 </script>
 
 <template>
-  <div class="greetings">
-    <h1 class="green">{{ msg }}</h1>
-    
-    <div class="search-container">
-      <input 
-        v-model="searchQuery" 
-        type="text" 
-        placeholder="Buscar produtos..."
-        class="search-input"
-      />
-    </div>
-
-    <div class="button-container">
-      <button @click="showForm = !showForm; if(showForm) editingProduct = null">
-        {{ showForm ? 'Cancelar' : 'Adicionar Produto' }}
-      </button>
-    </div>
-
-    <div v-if="showForm" class="form-container">
-      <form @submit.prevent="validateAndSubmit">
-        <div class="form-group">
-          <label for="name">Nome:</label>
-          <input
-            v-model="newProduct.name"
-            type="text"
-            id="name"
-            name="name"
-            required
-          />
-          <span v-if="errors.name" class="error">{{ errors.name }}</span>
+  <div class="app-container">
+    <Sidebar @navigate="handleNavigation" />
+    <div class="main-content">
+      <template v-if="currentRoute === 'products'">
+        <h1 class="green">{{ msg }}</h1>
+        
+        <div class="filters-container">
+          <div class="search-container">
+            <input 
+              v-model="searchQuery" 
+              type="text" 
+              placeholder="Buscar por nome..."
+              class="search-input"
+            />
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="amount">Quantidade:</label>
-          <input
-            v-model.number="newProduct.amount"
-            type="number"
-            id="amount"
-            name="amount"
-            required
-          />
-          <span v-if="errors.amount" class="error">{{ errors.amount }}</span>
+        <div class="button-container">
+          <button @click="showForm = !showForm; if(showForm) editingProduct = null">
+            {{ showForm ? 'Cancelar' : 'Adicionar Produto' }}
+          </button>
         </div>
 
-        <div class="form-group">
-          <label for="price">Preço:</label>
-          <input
-            v-model.number="newProduct.price"
-            type="number"
-            id="price"
-            name="price"
-            step="0.01"
-            min="0"
-            required
-          />
-          <span v-if="errors.price" class="error">{{ errors.price }}</span>
+        <div v-if="showForm" class="form-container">
+          <form @submit.prevent="validateAndSubmit">
+            <div class="form-group">
+              <label for="name">Nome:</label>
+              <input
+                v-model="newProduct.name"
+                type="text"
+                id="name"
+                name="name"
+                required
+              />
+              <span v-if="errors.name" class="error">{{ errors.name }}</span>
+            </div>
+
+            <div class="form-group">
+              <label for="amount">Quantidade:</label>
+              <input
+                v-model.number="newProduct.amount"
+                type="number"
+                id="amount"
+                name="amount"
+                required
+              />
+              <span v-if="errors.amount" class="error">{{ errors.amount }}</span>
+            </div>
+
+            <div class="form-group">
+              <label for="price">Preço:</label>
+              <input
+                v-model.number="newProduct.price"
+                type="number"
+                id="price"
+                name="price"
+                step="0.01"
+                min="0"
+                required
+              />
+              <span v-if="errors.price" class="error">{{ errors.price }}</span>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit">{{ editingProduct ? 'Atualizar' : 'Salvar' }}</button>
+              <button type="button" @click="cancelEdit" v-if="editingProduct">Cancelar</button>
+            </div>
+          </form>
         </div>
 
-        <div class="form-actions">
-          <button type="submit">{{ editingProduct ? 'Atualizar' : 'Salvar' }}</button>
-          <button type="button" @click="cancelEdit" v-if="editingProduct">Cancelar</button>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th @click="sortTable('name')" class="sortable">
+                  Nome
+                  <span v-if="sortConfig.key === 'name'" class="sort-indicator">
+                    {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
+                  </span>
+                </th>
+                <th @click="sortTable('amount')" class="sortable">
+                  Quantidade
+                  <span v-if="sortConfig.key === 'amount'" class="sort-indicator">
+                    {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
+                  </span>
+                </th>
+                <th @click="sortTable('price')" class="sortable">
+                  Preço
+                  <span v-if="sortConfig.key === 'price'" class="sort-indicator">
+                    {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
+                  </span>
+                </th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="product in sortedProducts" :key="product.id">
+                <td>{{ product.name }}</td>
+                <td>{{ product.amount }}</td>
+                <td>R$ {{ product.price.toFixed(2) }}</td>
+                <td>
+                  <button @click="editProduct(product)" class="action-button edit">Editar</button>
+                  <button @click="deleteProduct(product.id)" class="action-button delete">Remover</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </form>
-    </div>
-
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th @click="sortTable('name')" class="sortable">
-              Nome
-              <span v-if="sortConfig.key === 'name'" class="sort-indicator">
-                {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
-              </span>
-            </th>
-            <th @click="sortTable('amount')" class="sortable">
-              Quantidade
-              <span v-if="sortConfig.key === 'amount'" class="sort-indicator">
-                {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
-              </span>
-            </th>
-            <th @click="sortTable('price')" class="sortable">
-              Preço
-              <span v-if="sortConfig.key === 'price'" class="sort-indicator">
-                {{ sortConfig.direction === 'asc' ? '↑' : '↓' }}
-              </span>
-            </th>
-            <th>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="product in sortedProducts" :key="product.id">
-            <td>{{ product.name }}</td>
-            <td>{{ product.amount }}</td>
-            <td>R$ {{ product.price.toFixed(2) }}</td>
-            <td>
-              <button @click="editProduct(product)" class="action-button edit">Editar</button>
-              <button @click="deleteProduct(product.id)" class="action-button delete">Remover</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      </template>
     </div>
   </div>
 </template>
 
 <style scoped>
+.app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  margin-left: 200px;
+  padding: 20px;
+}
+
 .error {
   color: red;
   font-size: 0.9em;
@@ -290,14 +331,15 @@ h1 {
   top: -10px;
 }
 
-.greetings {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+.filters-container {
+  margin: 20px 0;
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 8px;
 }
 
 .search-container {
-  margin: 20px 0;
+  margin-bottom: 15px;
 }
 
 .search-input {
@@ -361,6 +403,20 @@ th {
   background-color: #f5f5f5;
 }
 
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  background-color: #e0e0e0;
+}
+
+.sort-indicator {
+  margin-left: 5px;
+  font-size: 0.8em;
+}
+
 .action-button {
   padding: 6px 12px;
   margin: 0 5px;
@@ -392,23 +448,27 @@ button:hover {
   opacity: 0.9;
 }
 
-@media (min-width: 1024px) {
-  .greetings h1 {
-    text-align: left;
-  }
+.filter-group {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
 }
 
-.sortable {
-  cursor: pointer;
-  user-select: none;
+.filter-item {
+  flex: 1;
+  min-width: 200px;
 }
 
-.sortable:hover {
-  background-color: #e0e0e0;
+.filter-item label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
 }
 
-.sort-indicator {
-  margin-left: 5px;
-  font-size: 0.8em;
+.filter-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 </style>
